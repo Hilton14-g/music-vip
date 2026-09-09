@@ -76,7 +76,35 @@ export const PlayerProvider = ({ children }) => {
   // Referencia para llamadas al reproductor de YouTube
   const playerRef = useRef(null);
 
+  // Referencias activas sincronizadas para evitar stale closures en transiciones y eventos
+  const queueRef = useRef(queue);
+  queueRef.current = queue;
+  const currentTrackRef = useRef(currentTrack);
+  currentTrackRef.current = currentTrack;
+  const isShuffleRef = useRef(isShuffle);
+  isShuffleRef.current = isShuffle;
+  const repeatModeRef = useRef(repeatMode);
+  repeatModeRef.current = repeatMode;
 
+  const findCurrentTrackIndex = (trackList, track) => {
+    if (!trackList || !trackList.length || !track) return -1;
+    // 1. Coincidencia por ID exacto
+    let idx = trackList.findIndex(t => t.id && track.id && t.id === track.id);
+    if (idx !== -1) return idx;
+
+    // 2. Coincidencia por youtubeId (clave para transiciones entre YouTube y búsquedas)
+    if (track.youtubeId) {
+      idx = trackList.findIndex(t => t.youtubeId && t.youtubeId === track.youtubeId);
+      if (idx !== -1) return idx;
+    }
+
+    // 3. Coincidencia por título limpio
+    if (track.title) {
+      const cleanT = track.title.toLowerCase().trim();
+      idx = trackList.findIndex(t => t.title && t.title.toLowerCase().trim() === cleanT);
+    }
+    return idx;
+  };
 
   // Guardar ajustes cuando cambien
   useEffect(() => {
@@ -139,14 +167,21 @@ export const PlayerProvider = ({ children }) => {
     }
 
     setCurrentTrack(track);
+    currentTrackRef.current = track;
     setIsPlaying(true);
     setCurrentTime(0);
 
     // Si nos pasan una nueva cola de reproducción
     if (newQueue && Array.isArray(newQueue) && newQueue.length > 0) {
       setQueue(newQueue);
-    } else if (!queue.some(t => t.id === track.id)) {
-      setQueue(prev => [track, ...prev]);
+      queueRef.current = newQueue;
+    } else {
+      const curQ = queueRef.current;
+      if (!curQ.some(t => t.id === track.id || (t.youtubeId && track.youtubeId && t.youtubeId === track.youtubeId))) {
+        const updatedQ = [track, ...curQ];
+        setQueue(updatedQ);
+        queueRef.current = updatedQ;
+      }
     }
 
     // Registrar en el historial
@@ -188,21 +223,23 @@ export const PlayerProvider = ({ children }) => {
   };
 
   const nextTrack = () => {
-    if (!queue || queue.length === 0) return;
+    const curQ = queueRef.current;
+    const curT = currentTrackRef.current;
+    if (!curQ || curQ.length === 0) return;
 
-    if (repeatMode === 'one') {
+    if (repeatModeRef.current === 'one') {
       seek(0);
       resumeTrack();
       return;
     }
 
-    const currentIndex = queue.findIndex(t => t.id === currentTrack?.id);
-    let nextIndex = currentIndex + 1;
+    const currentIndex = findCurrentTrackIndex(curQ, curT);
+    let nextIndex = currentIndex !== -1 ? currentIndex + 1 : 0;
 
-    if (isShuffle) {
-      nextIndex = Math.floor(Math.random() * queue.length);
-    } else if (nextIndex >= queue.length) {
-      if (repeatMode === 'all') {
+    if (isShuffleRef.current) {
+      nextIndex = Math.floor(Math.random() * curQ.length);
+    } else if (nextIndex >= curQ.length) {
+      if (repeatModeRef.current === 'all') {
         nextIndex = 0;
       } else {
         pauseTrack();
@@ -210,8 +247,10 @@ export const PlayerProvider = ({ children }) => {
       }
     }
 
-    const next = queue[nextIndex] || queue[0];
-    playTrack(next);
+    const next = curQ[nextIndex] || curQ[0];
+    if (next) {
+      playTrack(next);
+    }
   };
 
   const prevTrack = () => {
@@ -220,17 +259,17 @@ export const PlayerProvider = ({ children }) => {
       return;
     }
 
-    if (!queue || queue.length === 0) return;
+    const curQ = queueRef.current;
+    const curT = currentTrackRef.current;
+    if (!curQ || curQ.length === 0) return;
 
-    const currentIndex = queue.findIndex(t => t.id === currentTrack?.id);
-    let prevIndex = currentIndex - 1;
+    const currentIndex = findCurrentTrackIndex(curQ, curT);
+    let prevIndex = currentIndex > 0 ? currentIndex - 1 : curQ.length - 1;
 
-    if (prevIndex < 0) {
-      prevIndex = queue.length - 1;
+    const prev = curQ[prevIndex] || curQ[0];
+    if (prev) {
+      playTrack(prev);
     }
-
-    const prev = queue[prevIndex] || queue[0];
-    playTrack(prev);
   };
 
   const seek = (timeInSeconds) => {

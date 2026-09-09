@@ -13,7 +13,7 @@ export const TrackCard = ({ track, queueContext = null }) => {
 
   const handlePlayClick = (e) => {
     e.stopPropagation();
-    if (isCurrent) {
+    if (isCurrent && isPlaying) {
       togglePlay();
     } else {
       playTrack(track, queueContext);

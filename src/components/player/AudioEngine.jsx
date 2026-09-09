@@ -35,6 +35,12 @@ export const AudioEngine = () => {
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
+  const nextTrackRef = useRef(nextTrack);
+  nextTrackRef.current = nextTrack;
+
+  const isInitialMountRef = useRef(true);
+  const userInteractedRef = useRef(false);
+
   const audioContextRef = useRef(null);
   const wakeLockRef = useRef(null);
 
@@ -124,10 +130,19 @@ export const AudioEngine = () => {
     };
   }, []);
 
-  // Cargar canción cuando cambia el track
+  // Cargar canción cuando cambia el track (evitando reproducción automática al abrir la app)
   useEffect(() => {
     if (!currentTrack?.youtubeId || !iframeRef.current) return;
 
+    // Si es el primer montaje al abrir la app, no activar autoplay a menos que el usuario lo haya pedido
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      if (!isPlaying) {
+        return;
+      }
+    }
+
+    userInteractedRef.current = true;
     const newSrc = `https://www.youtube.com/embed/${currentTrack.youtubeId}?autoplay=1&enablejsapi=1&origin=${originParam}&playsinline=1&controls=0&disablekb=1&fs=0&modestbranding=1`;
     iframeRef.current.src = newSrc;
     setIsPlaying(true);
@@ -140,7 +155,15 @@ export const AudioEngine = () => {
   useEffect(() => {
     if (!iframeLoaded) return;
     if (isPlaying) {
-      sendCommand('playVideo');
+      if (!userInteractedRef.current) {
+        userInteractedRef.current = true;
+        if (iframeRef.current && currentTrack?.youtubeId) {
+          const newSrc = `https://www.youtube.com/embed/${currentTrack.youtubeId}?autoplay=1&enablejsapi=1&origin=${originParam}&playsinline=1&controls=0&disablekb=1&fs=0&modestbranding=1`;
+          iframeRef.current.src = newSrc;
+        }
+      } else {
+        sendCommand('playVideo');
+      }
       startAudioKeepalive();
       requestWakeLock();
     } else {
@@ -156,7 +179,7 @@ export const AudioEngine = () => {
     sendCommand('setVolume', [targetVol]);
   }, [volume, isMuted, iframeLoaded]);
 
-  // Escuchar eventos de reproducción desde YouTube
+  // Escuchar eventos de reproducción desde YouTube (con nextTrackRef actualizado para evitar stale closures)
   useEffect(() => {
     const handleMessage = (event) => {
       if (!event.data) return;
@@ -173,7 +196,7 @@ export const AudioEngine = () => {
           }
           // playerState: 0 = Ended, 1 = Playing, 2 = Paused
           if (data.info.playerState === 0) {
-            nextTrack();
+            nextTrackRef.current?.();
           } else if (data.info.playerState === 1) {
             setIsPlaying(true);
           } else if (data.info.playerState === 2) {

@@ -19,7 +19,7 @@ export const TrackRow = ({ track, index, queueContext = null, onRemove = null, r
   };
 
   const handleRowClick = () => {
-    if (isCurrent) {
+    if (isCurrent && isPlaying) {
       togglePlay();
     } else {
       playTrack(track, queueContext);
