@@ -110,11 +110,12 @@ export const saveStoredPlaylists = (playlists, userId = null) => {
 export const DEFAULT_YOUTUBE_API_KEY = 'AIzaSyBWexDZovLcJ-OHjKKIPAENTpUzHcNgEBQ';
 
 export const getStoredSettings = () => {
+  const envApiKey = import.meta.env.VITE_YOUTUBE_API_KEY || '';
   try {
     const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     const parsed = data ? JSON.parse(data) : {};
     return {
-      youtubeApiKey: parsed.youtubeApiKey || DEFAULT_YOUTUBE_API_KEY,
+      youtubeApiKey: parsed.youtubeApiKey || envApiKey || DEFAULT_YOUTUBE_API_KEY,
       eqPreset: parsed.eqPreset || 'normal',
       bassBoost: parsed.bassBoost ?? false,
       audioQuality: parsed.audioQuality || 'high',
@@ -123,7 +124,7 @@ export const getStoredSettings = () => {
   } catch (e) {
     console.error('Error al cargar ajustes:', e);
     return {
-      youtubeApiKey: DEFAULT_YOUTUBE_API_KEY,
+      youtubeApiKey: envApiKey || DEFAULT_YOUTUBE_API_KEY,
       eqPreset: 'normal',
       bassBoost: false,
       audioQuality: 'high',

@@ -14,7 +14,8 @@ import {
   Maximize2, 
   Sliders, 
   Moon, 
-  FileText 
+  FileText,
+  Tv 
 } from 'lucide-react';
 import { usePlayer } from '../../context/PlayerContext';
 import { AudioVisualizer } from './AudioVisualizer';
@@ -44,7 +45,8 @@ export const PlayerBar = () => {
     setIsQueueOpen,
     setIsLyricsOpen,
     setIsEqualizerOpen,
-    setIsSleepTimerOpen
+    setIsSleepTimerOpen,
+    setIsCastOpen
   } = usePlayer();
 
   const [isSeeking, setIsSeeking] = useState(false);
@@ -231,6 +233,15 @@ export const PlayerBar = () => {
             title="Ecualizador & FX"
           >
             <Sliders className="w-4 h-4 md:w-5 md:h-5" />
+          </button>
+
+          {/* Transmitir a la TV */}
+          <button
+            onClick={() => setIsCastOpen(true)}
+            className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-white/10 rounded-full transition-colors"
+            title="Transmitir a la TV (Chromecast / AirPlay / Smart TV)"
+          >
+            <Tv className="w-4 h-4 md:w-5 md:h-5" />
           </button>
 
           {/* Sleep Timer */}

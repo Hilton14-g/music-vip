@@ -68,7 +68,7 @@ export const QueueDrawer = () => {
         )}
 
         {/* Lista de siguientes pistas */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1" data-lenis-prevent>
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">A continuación</span>
           {queue.length === 0 ? (
             <div className="text-center py-12 text-slate-500 text-sm">

@@ -37,13 +37,22 @@ export const searchYouTubeMusicApi = async (query) => {
     if (!response.ok) return null;
     const data = await response.json();
 
-    const sections = data.contents?.tabbedSearchResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents || [];
+    // Si la función serverless ya procesó y normalizó los resultados
+    if (Array.isArray(data?.results) && data.results.length > 0) {
+      return data.results;
+    }
+
+    const rootContent = data.contents?.tabbedSearchResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents 
+      || data.contents 
+      || data;
     const songs = [];
     const seenIds = new Set();
 
-    // Escaneo recursivo profundo para extraer canciones reales de YouTube Music
+    // Escaneo recursivo profundo para extraer canciones reales (soporta WEB_REMIX y WEB estándar)
     function scan(obj) {
       if (!obj || typeof obj !== 'object') return;
+
+      // Formato 1: YouTube Music Oficial (musicResponsiveListItemRenderer)
       if (obj.musicResponsiveListItemRenderer) {
         const r = obj.musicResponsiveListItemRenderer;
         const flex0 = r.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs;
@@ -53,7 +62,6 @@ export const searchYouTubeMusicApi = async (query) => {
         const album = flex1?.[2]?.text || flex1?.[4]?.text || 'YouTube Music Official';
         const videoId = r.playlistItemData?.videoId || flex0?.[0]?.navigationEndpoint?.watchEndpoint?.videoId;
 
-        // Parsear duración real en segundos
         let durationSec = 210;
         if (flex1) {
           for (const run of flex1) {
@@ -66,11 +74,9 @@ export const searchYouTubeMusicApi = async (query) => {
           }
         }
 
-        // Miniatura
         const thumbnails = r.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
         const cover = thumbnails[thumbnails.length - 1]?.url || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
 
-        // Descartar Reels/Shorts menores a 60 segundos y duplicados
         if (title && videoId && !seenIds.has(videoId) && durationSec >= 60) {
           seenIds.add(videoId);
           songs.push({
@@ -88,12 +94,52 @@ export const searchYouTubeMusicApi = async (query) => {
         }
       }
 
+      // Formato 2: YouTube Web Estándar (videoRenderer)
+      if (obj.videoRenderer) {
+        const vr = obj.videoRenderer;
+        const rawTitle = vr.title?.runs?.[0]?.text || vr.title?.simpleText || '';
+        const videoId = vr.videoId;
+        const artist = vr.ownerText?.runs?.[0]?.text || vr.shortBylineText?.runs?.[0]?.text || 'Artista Oficial';
+        const lengthText = vr.lengthText?.simpleText || '';
+
+        let durationSec = 210;
+        if (lengthText && /^\d+:\d+$/.test(lengthText.trim())) {
+          const parts = lengthText.trim().split(':').map(Number);
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            durationSec = parts[0] * 60 + parts[1];
+          }
+        }
+
+        const thumbs = vr.thumbnail?.thumbnails || [];
+        const cover = thumbs[thumbs.length - 1]?.url || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
+
+        const cleanTitle = rawTitle
+          .replace(/(\(Official Video\)|\(Video Oficial\)|\(Official Music Video\)|\(Official Audio\)|\(Audio Oficial\)|\(Visualizer\))/gi, '')
+          .trim();
+
+        if (cleanTitle && videoId && !seenIds.has(videoId) && durationSec >= 50) {
+          seenIds.add(videoId);
+          songs.push({
+            id: `ytm-${videoId}`,
+            youtubeId: videoId,
+            title: cleanTitle,
+            artist: artist.replace(/VEVO$/i, '').trim(),
+            album: 'YouTube Music Oficial',
+            duration: durationSec,
+            genre: 'all',
+            cover: cover || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            plays: 'Audio HD',
+            lyrics: `Escuchando "${cleanTitle}" por ${artist} directamente de YouTube Music.`
+          });
+        }
+      }
+
       for (const key in obj) {
         scan(obj[key]);
       }
     }
 
-    scan(sections);
+    scan(rootContent);
     return songs.length > 0 ? songs : null;
   } catch (err) {
     console.warn('Error conectando a YouTube Music API:', err);
@@ -142,7 +188,13 @@ export const searchYouTubeMusic = async (query) => {
     }];
   }
 
-  // 1. YouTube Data API v3 Oficial con la clave de Google Cloud
+  // 1. Consulta prioritaria a YouTube Music API (Ilimitada, sin cuota y con metadatos oficiales)
+  const apiSongs = await searchYouTubeMusicApi(cleanQuery);
+  if (apiSongs && apiSongs.length > 0) {
+    return apiSongs;
+  }
+
+  // 2. Fallback secundario: YouTube Data API v3 Oficial con clave de Google Cloud
   const settings = getStoredSettings();
   const apiKey = (settings.youtubeApiKey && settings.youtubeApiKey.trim().length > 20) 
     ? settings.youtubeApiKey.trim() 
@@ -176,7 +228,6 @@ export const searchYouTubeMusic = async (query) => {
                 const thumbs = v.snippet?.thumbnails;
                 const cover = thumbs?.maxres?.url || thumbs?.high?.url || thumbs?.medium?.url || getYouTubeThumbnail(v.id);
 
-                // Limpiar sufijos como "(Official Video)", etc. para una experiencia 100% de música
                 const cleanTitle = rawTitle
                   .replace(/(\(Official Video\)|\(Video Oficial\)|\(Official Music Video\)|\(Official Audio\)|\(Audio Oficial\)|\(Visualizer\))/gi, '')
                   .trim();
@@ -203,17 +254,11 @@ export const searchYouTubeMusic = async (query) => {
         }
       }
     } catch (e) {
-      console.warn('Fallo en Google YouTube Data API, pasando a fallback:', e);
+      console.warn('Fallo en Google YouTube Data API, pasando a fallback local:', e);
     }
   }
 
-  // 2. Consulta a la API interna de YouTube Music
-  const apiSongs = await searchYouTubeMusicApi(cleanQuery);
-  if (apiSongs && apiSongs.length > 0) {
-    return apiSongs;
-  }
-
-  // 3. Fallback a catálogo local
+  // 3. Fallback final a catálogo local verificado
   const qLower = cleanQuery.toLowerCase();
   return INITIAL_TRACKS.filter(track => 
     track.title.toLowerCase().includes(qLower) ||

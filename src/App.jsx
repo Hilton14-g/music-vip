@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import Lenis from 'lenis';
+import 'lenis/dist/lenis.css';
 import { AuthProvider } from './context/AuthContext';
 import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { AudioEngine } from './components/player/AudioEngine';
@@ -8,6 +10,7 @@ import { QueueDrawer } from './components/player/QueueDrawer';
 import { LyricsModal } from './components/player/LyricsModal';
 import { EqualizerModal } from './components/player/EqualizerModal';
 import { SleepTimerModal } from './components/player/SleepTimerModal';
+import { CastModal } from './components/player/CastModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { Sidebar } from './components/navigation/Sidebar';
 import { MobileNav } from './components/navigation/MobileNav';
@@ -21,6 +24,44 @@ import { SettingsView } from './components/views/SettingsView';
 
 const MainLayout = () => {
   const { activeTab } = usePlayer();
+
+  // Inicialización de Lenis Smooth Scroll (Sensación 120 FPS)
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2, // Tiempo de deslizamiento e inercia física
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Curva exponencial fluida
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 1.0,
+      touchMultiplier: 1.5,
+      autoResize: true,
+    });
+
+    window.lenis = lenis;
+
+    let animId;
+    function raf(time) {
+      lenis.raf(time);
+      animId = requestAnimationFrame(raf);
+    }
+    animId = requestAnimationFrame(raf);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      lenis.destroy();
+      window.lenis = null;
+    };
+  }, []);
+
+  // Al cambiar de sección, regresar suavemente al inicio
+  useEffect(() => {
+    if (window.lenis) {
+      window.lenis.scrollTo(0, { immediate: true });
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [activeTab]);
 
   return (
     <div className="flex min-h-screen bg-[#08090d] text-slate-100 selection:bg-cyan-500 selection:text-black">
@@ -59,6 +100,7 @@ const MainLayout = () => {
       <LyricsModal />
       <EqualizerModal />
       <SleepTimerModal />
+      <CastModal />
       <AuthModal />
     </div>
   );

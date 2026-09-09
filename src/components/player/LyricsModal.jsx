@@ -30,7 +30,7 @@ export const LyricsModal = () => {
         </div>
 
         {/* Letras */}
-        <div className="flex-1 overflow-y-auto py-6 px-2 space-y-4 text-center">
+        <div className="flex-1 overflow-y-auto py-6 px-2 space-y-4 text-center" data-lenis-prevent>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold">
             <Sparkles className="w-3.5 h-3.5" />
             Letras Verificadas

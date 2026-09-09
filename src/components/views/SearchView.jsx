@@ -28,33 +28,45 @@ export const SearchView = () => {
       return;
     }
 
-    // 1. Respuesta instantánea con catálogo local (0ms)
-    searchYouTubeMusic(text).then(immediateResults => {
-      startTransition(() => {
-        setResults(immediateResults);
-      });
-    });
+    // 1. Respuesta instantánea en 0ms con catálogo local para respuesta inmediata
+    const qLower = text.trim().toLowerCase();
+    const localMatches = INITIAL_TRACKS.filter(track => 
+      track.title.toLowerCase().includes(qLower) ||
+      track.artist.toLowerCase().includes(qLower) ||
+      (track.album && track.album.toLowerCase().includes(qLower))
+    );
+    if (localMatches.length > 0) {
+      setResults(localMatches);
+    }
   };
 
-  // Enriquecer con sugerencias de YouTube en segundo plano
+  // Enriquecer con catálogo completo de YouTube en segundo plano (Debounce 280ms)
   useEffect(() => {
     if (!query.trim()) return;
 
+    let isCurrent = true;
     setIsSearching(true);
     const timer = setTimeout(async () => {
       try {
         const enriched = await searchYouTubeMusic(query);
-        startTransition(() => {
-          setResults(enriched);
-        });
+        if (isCurrent && enriched && enriched.length > 0) {
+          startTransition(() => {
+            setResults(enriched);
+          });
+        }
       } catch (e) {
         console.error('Error buscando:', e);
       } finally {
-        setIsSearching(false);
+        if (isCurrent) {
+          setIsSearching(false);
+        }
       }
-    }, 120);
+    }, 280);
 
-    return () => clearTimeout(timer);
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
   }, [query]);
 
   // Manejo de reproducción directa por URL de YouTube

@@ -62,7 +62,10 @@ export const AuthModal = () => {
       }, 1200);
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      if (err.code === 'auth/unauthorized-domain') {
+        const domain = typeof window !== 'undefined' ? window.location.hostname : 'tu-dominio-vercel.app';
+        setErrorMsg(`Dominio no autorizado en Firebase. Agrega "${domain}" en Firebase Console ➔ Authentication ➔ Settings ➔ Dominios autorizados.`);
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
         setErrorMsg('Correo o contraseña incorrectos.');
       } else if (err.code === 'auth/email-already-in-use') {
         setErrorMsg('Este correo electrónico ya está registrado.');
@@ -91,7 +94,10 @@ export const AuthModal = () => {
       }, 1000);
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/operation-not-allowed') {
+      if (err.code === 'auth/unauthorized-domain') {
+        const domain = typeof window !== 'undefined' ? window.location.hostname : 'tu-dominio-vercel.app';
+        setErrorMsg(`Dominio no autorizado en Firebase. Agrega "${domain}" en Firebase Console ➔ Authentication ➔ Settings ➔ Dominios autorizados.`);
+      } else if (err.code === 'auth/operation-not-allowed') {
         setErrorMsg('Falta activar el proveedor "Google" en Firebase Console ➔ Authentication ➔ Método de acceso.');
       } else if (err.code !== 'auth/popup-closed-by-user') {
         setErrorMsg(err.message || 'Error al iniciar sesión con Google.');

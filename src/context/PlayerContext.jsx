@@ -65,6 +65,7 @@ export const PlayerProvider = ({ children }) => {
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false);
+  const [isCastOpen, setIsCastOpen] = useState(false);
   const [isVideoMode, setIsVideoMode] = useState(false);
 
   // Audio FX / Temporizador
@@ -608,6 +609,8 @@ export const PlayerProvider = ({ children }) => {
         setIsLyricsOpen,
         setIsEqualizerOpen,
         setIsSleepTimerOpen,
+        isCastOpen,
+        setIsCastOpen,
         setIsVideoMode,
         toggleVideoMode: () => setIsVideoMode(prev => !prev),
         setSettings,

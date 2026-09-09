@@ -15,10 +15,38 @@
     color: #f1f5f9;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 }
 
-/* Custom modern scrollbars */
+/* Estilos de soporte para Lenis 120 FPS Ultra-Smooth Scroll */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Inercia táctil en móviles y contenedores scrollables */
+.scrollbar-none,
+.overflow-x-auto,
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

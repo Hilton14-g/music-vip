@@ -17,7 +17,8 @@ import {
   ListMusic, 
   Sliders, 
   Moon,
-  Share2
+  Share2,
+  Tv
 } from 'lucide-react';
 import { usePlayer } from '../../context/PlayerContext';
 import { AudioVisualizer } from './AudioVisualizer';
@@ -47,7 +48,8 @@ export const FullScreenPlayer = () => {
     setIsFullScreen,
     setIsQueueOpen,
     setIsEqualizerOpen,
-    setIsSleepTimerOpen
+    setIsSleepTimerOpen,
+    setIsCastOpen
   } = usePlayer();
 
   const [viewMode, setViewMode] = useState('vinyl'); // 'vinyl' | 'lyrics' | 'visualizer'
@@ -125,6 +127,13 @@ export const FullScreenPlayer = () => {
             title="Ajustes de Sonido"
           >
             <Sliders className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsCastOpen(true)}
+            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-cyan-400 transition-colors"
+            title="Transmitir a la TV"
+          >
+            <Tv className="w-5 h-5" />
           </button>
           <button
             onClick={handleShare}

@@ -32,16 +32,108 @@ export const AudioEngine = () => {
     }
   };
 
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const audioContextRef = useRef(null);
+  const wakeLockRef = useRef(null);
+
+  // 1. Activar AudioContext continuo para mantener el proceso de audio activo en segundo plano en Android/iOS
+  const startAudioKeepalive = () => {
+    try {
+      if (!audioContextRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          audioContextRef.current = new AudioCtx();
+        }
+      }
+
+      if (audioContextRef.current) {
+        if (audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume();
+        }
+
+        if (!audioContextRef.current._keepAliveStarted) {
+          const ctx = audioContextRef.current;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          gain.gain.value = 0.0001; // Inaudible para el oído humano
+          osc.frequency.value = 432;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          audioContextRef.current._keepAliveStarted = true;
+        }
+      }
+    } catch (e) {
+      console.warn('AudioContext keepalive:', e);
+    }
+
+    if (silentAudioRef.current) {
+      silentAudioRef.current.play().catch(() => {});
+    }
+  };
+
+  // 2. Wake Lock API: Evitar suspensión automática mientras suena música
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator && !wakeLockRef.current) {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        wakeLockRef.current.addEventListener('release', () => {
+          wakeLockRef.current = null;
+        });
+      } catch (err) {
+        // Silencioso si el SO o batería restringen WakeLock
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {});
+      wakeLockRef.current = null;
+    }
+  };
+
+  // 3. Manejo de pantalla bloqueada o cambio de pestaña (visibilitychange)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // La pantalla se apagó o la app pasó a segundo plano
+        if (isPlayingRef.current) {
+          startAudioKeepalive();
+          // Enviar ráfaga de playVideo para contrarrestar la pausa de YouTube
+          setTimeout(() => sendCommand('playVideo'), 100);
+          setTimeout(() => sendCommand('playVideo'), 400);
+        }
+      } else {
+        // La pantalla se encendió de nuevo
+        if (isPlayingRef.current) {
+          requestWakeLock();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, []);
+
   // Cargar canción cuando cambia el track
   useEffect(() => {
     if (!currentTrack?.youtubeId || !iframeRef.current) return;
 
-    // Cargar directamente el video con autoplay y origin habilitado para postMessage
     const newSrc = `https://www.youtube.com/embed/${currentTrack.youtubeId}?autoplay=1&enablejsapi=1&origin=${originParam}&playsinline=1&controls=0&disablekb=1&fs=0&modestbranding=1`;
     iframeRef.current.src = newSrc;
     setIsPlaying(true);
     setCurrentTime(0);
-    keepAudioAlive();
+    startAudioKeepalive();
+    requestWakeLock();
   }, [currentTrack?.youtubeId]);
 
   // Sincronizar Play / Pause
@@ -49,9 +141,11 @@ export const AudioEngine = () => {
     if (!iframeLoaded) return;
     if (isPlaying) {
       sendCommand('playVideo');
-      keepAudioAlive();
+      startAudioKeepalive();
+      requestWakeLock();
     } else {
       sendCommand('pauseVideo');
+      releaseWakeLock();
     }
   }, [isPlaying, iframeLoaded]);
 
@@ -83,6 +177,11 @@ export const AudioEngine = () => {
           } else if (data.info.playerState === 1) {
             setIsPlaying(true);
           } else if (data.info.playerState === 2) {
+            // Si YouTube se pausa involuntariamente por bloqueo de pantalla, forzar continuación
+            if (document.hidden && isPlayingRef.current) {
+              sendCommand('playVideo');
+              return;
+            }
             setIsPlaying(false);
           }
         }
@@ -98,7 +197,6 @@ export const AudioEngine = () => {
     let timer = null;
     if (isPlaying) {
       timer = setInterval(() => {
-        // Pedir a YouTube el estado actual por postMessage
         if (iframeRef.current?.contentWindow) {
           iframeRef.current.contentWindow.postMessage(
             JSON.stringify({ event: 'listening' }),
@@ -106,7 +204,6 @@ export const AudioEngine = () => {
           );
         }
 
-        // Avance suave del corredor de minutos
         setCurrentTime(prev => {
           const maxDur = duration || 300;
           if (prev >= maxDur - 0.5) {
@@ -120,14 +217,6 @@ export const AudioEngine = () => {
       if (timer) clearInterval(timer);
     };
   }, [isPlaying, duration]);
-
-  const keepAudioAlive = () => {
-    if (silentAudioRef.current) {
-      try {
-        silentAudioRef.current.play().catch(() => {});
-      } catch (e) {}
-    }
-  };
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
